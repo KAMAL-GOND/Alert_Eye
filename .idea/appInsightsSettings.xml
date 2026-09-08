@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.example.alert_eye" />
+                  <option name="mobileSdkAppId" value="1:305870729964:android:f32f4c7d638773e174ebc9" />
+                  <option name="projectId" value="alerteye-fc529" />
+                  <option name="projectNumber" value="305870729964" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

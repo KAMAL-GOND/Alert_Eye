@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.google.services)
     id("kotlin-parcelize")
 }
 
@@ -77,7 +79,7 @@ dependencies {
     // Room (Database)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    // annotationProcessor(libs.androidx.room.compiler) // Wait to add ksp later
+    ksp(libs.androidx.room.compiler)
 
     // Firebase BOM
     implementation(platform(libs.firebase.bom))
