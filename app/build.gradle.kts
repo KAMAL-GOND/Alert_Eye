@@ -10,7 +10,7 @@ plugins {
 android {
     namespace = "com.example.alert_eye"
     compileSdk {
-        version = release(37)
+        version = release(36)
     }
 
     defaultConfig {
@@ -81,8 +81,9 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // Firebase BOM
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    implementation(libs.play.services.location)
+    implementation(libs.kotlinx.coroutines.play.services)
 }

@@ -12,6 +12,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+import com.example.alert_eye.hardware.ImpactDetector
+import com.example.alert_eye.hardware.SosManager
+import kotlinx.coroutines.delay
+
 data class MonitoringUiState(
     val faceResult: FaceLandmarkerResult? = null,
     val imageWidth: Int = 1,
@@ -20,16 +24,52 @@ data class MonitoringUiState(
     val isYawning: Boolean = false,
     val isDistracted: Boolean = false,
     val isUsingPhone: Boolean = false,
-    val isDrinking: Boolean = false
+    val isDrinking: Boolean = false,
+    val isSosActive: Boolean = false,
+    val sosCountdown: Int = 15
 )
 
 class MonitoringViewModel(
     private val safetyEngine: SafetyEngine,
-    private val alertManager: AlertManager
+    private val alertManager: AlertManager,
+    private val impactDetector: ImpactDetector,
+    private val sosManager: SosManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MonitoringUiState())
     val uiState: StateFlow<MonitoringUiState> = _uiState.asStateFlow()
+    
+    private var countdownJob: kotlinx.coroutines.Job? = null
+
+    init {
+        impactDetector.start {
+            triggerSosCountdown()
+        }
+    }
+
+    fun triggerSosCountdown() {
+        if (_uiState.value.isSosActive) return
+        _uiState.value = _uiState.value.copy(isSosActive = true, sosCountdown = 15)
+        countdownJob = viewModelScope.launch {
+            for (i in 15 downTo 1) {
+                _uiState.value = _uiState.value.copy(sosCountdown = i)
+                delay(1000)
+            }
+            sendSos()
+            _uiState.value = _uiState.value.copy(isSosActive = false)
+        }
+    }
+
+    fun cancelSos() {
+        countdownJob?.cancel()
+        _uiState.value = _uiState.value.copy(isSosActive = false)
+    }
+
+    private fun sendSos() {
+        viewModelScope.launch {
+            sosManager.sendSosMessage()
+        }
+    }
 
     fun processFaceResult(result: FaceLandmarkerResult, width: Int, height: Int) {
         viewModelScope.launch {
@@ -59,8 +99,22 @@ class MonitoringViewModel(
         }
     }
 
+    private var drowsyStartTime: Long = 0L
+
     private fun evaluateAlerts() {
         val state = _uiState.value
+        
+        if (state.isDrowsy) {
+            if (drowsyStartTime == 0L) {
+                drowsyStartTime = System.currentTimeMillis()
+            } else if (System.currentTimeMillis() - drowsyStartTime >= 5000L) {
+                triggerSosCountdown()
+                drowsyStartTime = System.currentTimeMillis() // Reset timer
+            }
+        } else {
+            drowsyStartTime = 0L
+        }
+
         if (state.isDrowsy) {
             alertManager.triggerAlert(SafetyEvent(type = EventType.DROWSINESS, severity = Severity.HIGH))
         } else if (state.isDrinking || state.isUsingPhone) {
@@ -78,5 +132,6 @@ class MonitoringViewModel(
     override fun onCleared() {
         super.onCleared()
         alertManager.stopAlert()
+        impactDetector.stop()
     }
 }

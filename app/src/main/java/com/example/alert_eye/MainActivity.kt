@@ -21,6 +21,13 @@ import androidx.navigation.compose.rememberNavController
 import com.example.alert_eye.ui.CameraPreviewScreen
 import com.example.alert_eye.ui.auth.LoginScreen
 import com.example.alert_eye.ui.auth.SignupScreen
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import com.example.alert_eye.ui.contacts.ContactScreen
 import com.example.alert_eye.ui.theme.Alert_EyeTheme
 import com.google.firebase.auth.FirebaseAuth
 
@@ -79,7 +86,20 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                        @OptIn(ExperimentalMaterial3Api::class)
+                        Scaffold(
+                            modifier = Modifier.fillMaxSize(),
+                            topBar = {
+                                TopAppBar(
+                                    title = { Text("AlertEye Monitoring") },
+                                    actions = {
+                                        IconButton(onClick = { navController.navigate("contacts") }) {
+                                            Icon(Icons.Default.Person, contentDescription = "Contacts")
+                                        }
+                                    }
+                                )
+                            }
+                        ) { innerPadding ->
                             if (hasCameraPermission) {
                                 CameraPreviewScreen(modifier = Modifier.padding(innerPadding))
                             } else {
@@ -89,6 +109,11 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+                    }
+                    composable("contacts") {
+                        ContactScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
                     }
                 }
             }
