@@ -64,25 +64,31 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("monitoring") {
-                        var hasCameraPermission by remember {
+                        val requiredPermissions = arrayOf(
+                            Manifest.permission.CAMERA,
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                            Manifest.permission.SEND_SMS
+                        )
+
+                        var hasRequiredPermissions by remember {
                             mutableStateOf(
-                                ContextCompat.checkSelfPermission(
-                                    this@MainActivity,
-                                    Manifest.permission.CAMERA
-                                ) == PackageManager.PERMISSION_GRANTED
+                                requiredPermissions.all {
+                                    ContextCompat.checkSelfPermission(this@MainActivity, it) == PackageManager.PERMISSION_GRANTED
+                                }
                             )
                         }
 
                         val permissionLauncher = rememberLauncherForActivityResult(
-                            contract = ActivityResultContracts.RequestPermission(),
-                            onResult = { isGranted ->
-                                hasCameraPermission = isGranted
+                            contract = ActivityResultContracts.RequestMultiplePermissions(),
+                            onResult = { permissions ->
+                                hasRequiredPermissions = permissions.entries.all { it.value }
                             }
                         )
 
                         LaunchedEffect(Unit) {
-                            if (!hasCameraPermission) {
-                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            if (!hasRequiredPermissions) {
+                                permissionLauncher.launch(requiredPermissions)
                             }
                         }
 
@@ -100,11 +106,11 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         ) { innerPadding ->
-                            if (hasCameraPermission) {
+                            if (hasRequiredPermissions) {
                                 CameraPreviewScreen(modifier = Modifier.padding(innerPadding))
                             } else {
                                 Text(
-                                    text = "Camera permission is required for driver monitoring.",
+                                    text = "Camera, Location, and SMS permissions are required for driver monitoring.",
                                     modifier = Modifier.padding(innerPadding)
                                 )
                             }
