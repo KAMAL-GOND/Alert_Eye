@@ -62,26 +62,43 @@ class SafetyAnalyzer(
 
     private var imageWidth = 0
     private var imageHeight = 0
+    private var lastAnalyzeTime = 0L
+    private val THROTTLE_TIMEOUT_MS = 100L // Cap at 10 FPS to save CPU and battery
 
     override fun analyze(imageProxy: ImageProxy) {
+        val currentTimeMs = System.currentTimeMillis()
+        if (currentTimeMs - lastAnalyzeTime < THROTTLE_TIMEOUT_MS) {
+            imageProxy.close()
+            return
+        }
+        lastAnalyzeTime = currentTimeMs
+
         val bitmap = imageProxy.toBitmap()
-        
         val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-        val matrix = Matrix()
-        matrix.postRotate(rotationDegrees.toFloat())
         
-        val rotatedBitmap = Bitmap.createBitmap(
-            bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
-        )
+        // Optimize: Only create a new rotated bitmap if necessary
+        val rotatedBitmap = if (rotationDegrees != 0) {
+            val matrix = Matrix()
+            matrix.postRotate(rotationDegrees.toFloat())
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, false)
+        } else {
+            bitmap
+        }
         
         imageWidth = rotatedBitmap.width
         imageHeight = rotatedBitmap.height
 
         val mpImage: MPImage = BitmapImageBuilder(rotatedBitmap).build()
-        val timestampMs = System.currentTimeMillis()
         
-        faceLandmarker?.detectAsync(mpImage, timestampMs)
-        objectDetector?.detectAsync(mpImage, timestampMs)
+        // MediaPipe requires strictly monotonically increasing timestamps
+        val frameTimestampMs = imageProxy.imageInfo.timestamp / 1_000_000
+        
+        try {
+            faceLandmarker?.detectAsync(mpImage, frameTimestampMs)
+            objectDetector?.detectAsync(mpImage, frameTimestampMs)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         
         imageProxy.close()
     }

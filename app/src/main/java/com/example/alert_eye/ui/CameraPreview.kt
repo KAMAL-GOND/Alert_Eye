@@ -40,6 +40,20 @@ import androidx.core.content.ContextCompat
 import org.koin.androidx.compose.koinViewModel
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 @Composable
 fun CameraPreviewScreen(
@@ -64,7 +78,12 @@ fun CameraPreviewScreen(
             .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
             .build()
 
+        val resolutionSelector = androidx.camera.core.resolutionselector.ResolutionSelector.Builder()
+            .setResolutionStrategy(androidx.camera.core.resolutionselector.ResolutionStrategy(android.util.Size(640, 480), androidx.camera.core.resolutionselector.ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER))
+            .build()
+
         val imageAnalysis = ImageAnalysis.Builder()
+            .setResolutionSelector(resolutionSelector)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
             
@@ -106,36 +125,64 @@ fun CameraPreviewScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        if (uiState.isDrowsy || uiState.isDistracted || uiState.isYawning || uiState.isUsingPhone || uiState.isDrinking) {
-            val alertText = when {
-                uiState.isDrowsy -> "DROWSINESS DETECTED!"
-                uiState.isDistracted -> "PLEASE LOOK AT THE ROAD!"
-                uiState.isUsingPhone -> "PUT THE PHONE DOWN!"
-                uiState.isDrinking -> "UNSAFE DRINKING BEHAVIOR!"
-                uiState.isYawning -> "FATIGUE WARNING (YAWNING)"
-                else -> ""
-            }
-            
-            val alertColor = when {
-                uiState.isDrowsy || uiState.isUsingPhone || uiState.isDrinking -> Color.Red
-                uiState.isDistracted -> Color(0xFFFFA500) // Orange
-                uiState.isYawning -> Color.Yellow
-                else -> Color.Transparent
-            }
+        val hasAlert = uiState.isDrowsy || uiState.isDistracted || uiState.isYawning || uiState.isUsingPhone || uiState.isDrinking
+        
+        val infiniteTransition = rememberInfiniteTransition()
+        val alpha by infiniteTransition.animateFloat(
+            initialValue = 0.3f,
+            targetValue = 0.8f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(500, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "alertAlpha"
+        )
 
+        val alertText = when {
+            uiState.isDrowsy -> "DROWSINESS DETECTED!"
+            uiState.isUsingPhone -> "PUT THE PHONE DOWN!"
+            uiState.isDrinking -> "UNSAFE DRINKING BEHAVIOR!"
+            uiState.isDistracted -> "PLEASE LOOK AT THE ROAD!"
+            uiState.isYawning -> "FATIGUE WARNING (YAWNING)"
+            else -> ""
+        }
+        
+        val alertColor = when {
+            uiState.isDrowsy || uiState.isUsingPhone || uiState.isDrinking -> Color.Red
+            uiState.isDistracted -> Color(0xFFFFA500) // Orange
+            uiState.isYawning -> Color.Yellow
+            else -> Color.Transparent
+        }
+
+        AnimatedVisibility(
+            visible = hasAlert,
+            enter = fadeIn() + slideInVertically(),
+            exit = fadeOut() + slideOutVertically(),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(alertColor.copy(alpha = 0.3f)),
+                    .fillMaxWidth(0.9f)
+                    .background(alertColor.copy(alpha = alpha), RoundedCornerShape(16.dp))
+                    .border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = alertText,
                     color = if (uiState.isYawning) Color.Black else Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
             }
+        }
+        
+        if (hasAlert && (alertColor == Color.Red || alertColor == Color(0xFFFFA500))) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .border(8.dp, alertColor.copy(alpha = alpha))
+            )
         }
 
         // SOS Button

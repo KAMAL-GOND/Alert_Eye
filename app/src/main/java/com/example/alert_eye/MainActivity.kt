@@ -27,6 +27,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.unit.dp
 import com.example.alert_eye.ui.contacts.ContactScreen
 import com.example.alert_eye.ui.theme.Alert_EyeTheme
 import com.google.firebase.auth.FirebaseAuth
@@ -92,15 +97,45 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        var menuExpanded by remember { mutableStateOf(false) }
+
                         @OptIn(ExperimentalMaterial3Api::class)
                         Scaffold(
                             modifier = Modifier.fillMaxSize(),
                             topBar = {
                                 TopAppBar(
-                                    title = { Text("AlertEye Monitoring") },
+                                    title = { Text("AlertEye") },
                                     actions = {
+                                        IconButton(onClick = { navController.navigate("history") }) {
+                                            Icon(Icons.Default.List, contentDescription = "History")
+                                        }
                                         IconButton(onClick = { navController.navigate("contacts") }) {
                                             Icon(Icons.Default.Person, contentDescription = "Contacts")
+                                        }
+                                        IconButton(onClick = { menuExpanded = true }) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                                        }
+                                        DropdownMenu(
+                                            expanded = menuExpanded,
+                                            onDismissRequest = { menuExpanded = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Settings") },
+                                                onClick = {
+                                                    menuExpanded = false
+                                                    navController.navigate("settings")
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Logout") },
+                                                onClick = {
+                                                    menuExpanded = false
+                                                    FirebaseAuth.getInstance().signOut()
+                                                    navController.navigate("login") {
+                                                        popUpTo("monitoring") { inclusive = true }
+                                                    }
+                                                }
+                                            )
                                         }
                                     }
                                 )
@@ -109,8 +144,7 @@ class MainActivity : ComponentActivity() {
                             if (hasRequiredPermissions) {
                                 CameraPreviewScreen(modifier = Modifier.padding(innerPadding))
                             } else {
-                                Text(
-                                    text = "Camera, Location, and SMS permissions are required for driver monitoring.",
+                                com.example.alert_eye.ui.permissions.PermissionScreen(
                                     modifier = Modifier.padding(innerPadding)
                                 )
                             }
@@ -120,6 +154,15 @@ class MainActivity : ComponentActivity() {
                         ContactScreen(
                             onNavigateBack = { navController.popBackStack() }
                         )
+                    }
+                    composable("history") {
+                        com.example.alert_eye.ui.history.HistoryScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("settings") {
+                        // TODO: Implement Settings Screen
+                        Text("Settings Screen Under Construction", modifier = Modifier.fillMaxSize().padding(32.dp))
                     }
                 }
             }

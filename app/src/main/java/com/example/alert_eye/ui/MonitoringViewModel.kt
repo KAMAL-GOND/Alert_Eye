@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 
 import com.example.alert_eye.hardware.ImpactDetector
 import com.example.alert_eye.hardware.SosManager
+import com.example.alert_eye.data.repository.SyncRepository
 import kotlinx.coroutines.delay
 
 data class MonitoringUiState(
@@ -33,7 +34,8 @@ class MonitoringViewModel(
     private val safetyEngine: SafetyEngine,
     private val alertManager: AlertManager,
     private val impactDetector: ImpactDetector,
-    private val sosManager: SosManager
+    private val sosManager: SosManager,
+    private val syncRepository: SyncRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MonitoringUiState())
@@ -101,6 +103,31 @@ class MonitoringViewModel(
 
     private var drowsyStartTime: Long = 0L
 
+    private var lastSavedEventType: EventType? = null
+    private var lastSavedEventTime: Long = 0L
+
+    private fun saveEventIfNeeded(type: EventType, severity: Severity) {
+        val currentTime = System.currentTimeMillis()
+        if (type == lastSavedEventType && (currentTime - lastSavedEventTime < 10000)) {
+            // Debounce: Don't save the exact same event type if it happened within 10 seconds
+            return
+        }
+        
+        lastSavedEventType = type
+        lastSavedEventTime = currentTime
+        
+        val eventEntity = com.example.alert_eye.data.local.SafetyEventEntity(
+            id = java.util.UUID.randomUUID().toString(),
+            type = type,
+            timestamp = currentTime,
+            severity = severity
+        )
+        
+        viewModelScope.launch {
+            syncRepository.saveEvent(eventEntity)
+        }
+    }
+
     private fun evaluateAlerts() {
         val state = _uiState.value
         
@@ -117,13 +144,17 @@ class MonitoringViewModel(
 
         if (state.isDrowsy) {
             alertManager.triggerAlert(SafetyEvent(type = EventType.DROWSINESS, severity = Severity.HIGH))
+            saveEventIfNeeded(EventType.DROWSINESS, Severity.HIGH)
         } else if (state.isDrinking || state.isUsingPhone) {
             val type = if (state.isDrinking) EventType.DRINKING else EventType.PHONE_USE
             alertManager.triggerAlert(SafetyEvent(type = type, severity = Severity.HIGH))
+            saveEventIfNeeded(type, Severity.HIGH)
         } else if (state.isDistracted) {
             alertManager.triggerAlert(SafetyEvent(type = EventType.DISTRACTION, severity = Severity.MEDIUM))
+            saveEventIfNeeded(EventType.DISTRACTION, Severity.MEDIUM)
         } else if (state.isYawning) {
             alertManager.triggerAlert(SafetyEvent(type = EventType.YAWNING, severity = Severity.LOW))
+            saveEventIfNeeded(EventType.YAWNING, Severity.LOW)
         } else {
             alertManager.stopAlert()
         }

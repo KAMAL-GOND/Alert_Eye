@@ -50,7 +50,8 @@ val appModule = module {
     single { ContactRepository(get(), get(), get()) }
 
     // ViewModels
-    viewModel { MonitoringViewModel(get(), get(), get(), get()) }
+    viewModel { MonitoringViewModel(get(), get(), get(), get(), get()) }
     viewModel { AuthViewModel(get()) }
     viewModel { ContactViewModel(get()) }
+    viewModel { com.example.alert_eye.ui.history.HistoryViewModel(get()) }
 }
