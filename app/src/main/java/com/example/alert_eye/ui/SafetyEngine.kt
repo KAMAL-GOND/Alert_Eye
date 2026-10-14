@@ -6,7 +6,11 @@ import com.google.mediapipe.tasks.vision.objectdetector.ObjectDetectorResult
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-class SafetyEngine {
+import com.example.alert_eye.data.repository.AppSettingsRepository
+
+class SafetyEngine(
+    private val settingsRepository: AppSettingsRepository? = null
+) {
 
     // Counters
     private var closedFramesCount = 0
@@ -15,17 +19,31 @@ class SafetyEngine {
     private var phoneFramesCount = 0
     private var drinkFramesCount = 0
 
-    // Thresholds (these will be tuned in Phase 9)
-    private val EAR_THRESHOLD = 0.2f
+    // Dynamic Thresholds from Settings
+    private val earThreshold: Float
+        get() = settingsRepository?.earThreshold ?: 0.20f
     private val CLOSED_FRAMES_THRESHOLD = 15 // ~0.5s
 
-    private val MAR_THRESHOLD = 0.5f // Mouth Aspect Ratio
+    private val marThreshold: Float
+        get() = settingsRepository?.marThreshold ?: 0.50f
     private val YAWNING_FRAMES_THRESHOLD = 30 // ~1s
 
-    // Simple heuristic for head pose (Yaw)
-    private val YAW_DISTRACTION_THRESHOLD = 2.0f // Ratio heavily skewed
+    private val yawThreshold: Float
+        get() = settingsRepository?.distractionSensitivity ?: 2.0f
     private val DISTRACTED_FRAMES_THRESHOLD = 45 // ~1.5s looking away
     
+    // Feature toggles
+    private val isDrowsinessEnabled: Boolean
+        get() = settingsRepository?.isDrowsinessEnabled ?: true
+    private val isYawningEnabled: Boolean
+        get() = settingsRepository?.isYawningEnabled ?: true
+    private val isDistractionEnabled: Boolean
+        get() = settingsRepository?.isDistractionEnabled ?: true
+    private val isPhoneEnabled: Boolean
+        get() = settingsRepository?.isPhoneDetectionEnabled ?: true
+    private val isDrinkingEnabled: Boolean
+        get() = settingsRepository?.isDrinkingDetectionEnabled ?: true
+
     // Object Detection Thresholds
     private val PHONE_FRAMES_THRESHOLD = 30 // ~1s
     private val DRINK_FRAMES_THRESHOLD = 45 // ~1.5s
@@ -56,7 +74,7 @@ class SafetyEngine {
         val rightEAR = calculateEyeAspectRatio(landmarks, RIGHT_EYE_INDICES)
         val averageEAR = (leftEAR + rightEAR) / 2.0f
 
-        if (averageEAR < EAR_THRESHOLD) {
+        if (isDrowsinessEnabled && averageEAR < earThreshold) {
             closedFramesCount++
             if (closedFramesCount >= CLOSED_FRAMES_THRESHOLD) {
                 isDrowsy = true
@@ -68,7 +86,7 @@ class SafetyEngine {
 
         // 2. Yawning Detection
         val mar = calculateMouthAspectRatio(landmarks)
-        if (mar > MAR_THRESHOLD) {
+        if (isYawningEnabled && mar > marThreshold) {
             yawningFramesCount++
             if (yawningFramesCount >= YAWNING_FRAMES_THRESHOLD) {
                 isYawning = true
@@ -79,7 +97,7 @@ class SafetyEngine {
         }
 
         // 3. Distraction Detection (Head Pose proxy)
-        val isLookingAway = estimateHeadPoseDistraction(landmarks)
+        val isLookingAway = isDistractionEnabled && estimateHeadPoseDistraction(landmarks)
         if (isLookingAway) {
             distractedFramesCount++
             if (distractedFramesCount >= DISTRACTED_FRAMES_THRESHOLD) {
@@ -109,7 +127,7 @@ class SafetyEngine {
         }
 
         // Phone Logic
-        if (phoneDetectedThisFrame) {
+        if (isPhoneEnabled && phoneDetectedThisFrame) {
             phoneFramesCount++
             if (phoneFramesCount >= PHONE_FRAMES_THRESHOLD) {
                 isUsingPhone = true
@@ -120,7 +138,7 @@ class SafetyEngine {
         }
 
         // Drink Logic
-        if (drinkDetectedThisFrame) {
+        if (isDrinkingEnabled && drinkDetectedThisFrame) {
             drinkFramesCount++
             if (drinkFramesCount >= DRINK_FRAMES_THRESHOLD) {
                 isDrinking = true
@@ -173,7 +191,7 @@ class SafetyEngine {
 
         // If ratio is extremely skewed, head is turned significantly
         val ratio = leftDist / rightDist
-        return ratio > YAW_DISTRACTION_THRESHOLD || ratio < (1.0 / YAW_DISTRACTION_THRESHOLD)
+        return ratio > yawThreshold || ratio < (1.0 / yawThreshold)
     }
 
     private fun distance(p1: NormalizedLandmark, p2: NormalizedLandmark): Double {

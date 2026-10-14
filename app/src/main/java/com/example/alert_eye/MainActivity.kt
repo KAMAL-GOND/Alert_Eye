@@ -161,8 +161,9 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("settings") {
-                        // TODO: Implement Settings Screen
-                        Text("Settings Screen Under Construction", modifier = Modifier.fillMaxSize().padding(32.dp))
+                        com.example.alert_eye.ui.settings.SettingsScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
                     }
                 }
             }

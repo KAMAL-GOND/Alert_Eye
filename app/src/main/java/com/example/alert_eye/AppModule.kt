@@ -19,10 +19,16 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
 
+import com.example.alert_eye.data.repository.AppSettingsRepository
+import com.example.alert_eye.ui.settings.SettingsViewModel
+
 val appModule = module {
+    // Settings & Persistence
+    single { AppSettingsRepository(androidContext()) }
+
     // Core
-    single { SafetyEngine() }
-    single { AlertManager(androidContext()) }
+    single { SafetyEngine(get()) }
+    single { AlertManager(androidContext(), get()) }
 
     // Firebase
     single { FirebaseAuth.getInstance() }
@@ -50,8 +56,9 @@ val appModule = module {
     single { ContactRepository(get(), get(), get()) }
 
     // ViewModels
-    viewModel { MonitoringViewModel(get(), get(), get(), get(), get()) }
+    viewModel { MonitoringViewModel(get(), get(), get(), get(), get(), get()) }
     viewModel { AuthViewModel(get()) }
     viewModel { ContactViewModel(get()) }
-    viewModel { com.example.alert_eye.ui.history.HistoryViewModel(get()) }
+    viewModel { com.example.alert_eye.ui.history.HistoryViewModel(get(), get()) }
+    viewModel { SettingsViewModel(get()) }
 }

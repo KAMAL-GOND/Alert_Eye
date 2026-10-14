@@ -9,8 +9,12 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import com.example.alert_eye.data.SafetyEvent
 import com.example.alert_eye.data.Severity
+import com.example.alert_eye.data.repository.AppSettingsRepository
 
-class AlertManager(private val context: Context) {
+class AlertManager(
+    private val context: Context,
+    private val settingsRepository: AppSettingsRepository? = null
+) {
 
     private var currentRingtone: Ringtone? = null
     private val vibrator: Vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -22,18 +26,21 @@ class AlertManager(private val context: Context) {
     }
 
     fun triggerAlert(event: SafetyEvent) {
+        val isSoundEnabled = settingsRepository?.isSoundAlertEnabled ?: true
+        val isVibrationEnabled = settingsRepository?.isVibrationAlertEnabled ?: true
+
         if (currentRingtone?.isPlaying == true) {
             return // Already playing an alert
         }
 
         when (event.severity) {
             Severity.HIGH, Severity.EMERGENCY -> {
-                playAlarm()
-                vibrate(longArrayOf(0, 500, 200, 500))
+                if (isSoundEnabled) playAlarm()
+                if (isVibrationEnabled) vibrate(longArrayOf(0, 500, 200, 500))
             }
             Severity.MEDIUM -> {
-                playNotification()
-                vibrate(longArrayOf(0, 300))
+                if (isSoundEnabled) playNotification()
+                if (isVibrationEnabled) vibrate(longArrayOf(0, 300))
             }
             Severity.LOW -> {
                 // Just visual, handled by Compose UI

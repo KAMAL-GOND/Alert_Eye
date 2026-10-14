@@ -17,6 +17,8 @@ import com.example.alert_eye.hardware.SosManager
 import com.example.alert_eye.data.repository.SyncRepository
 import kotlinx.coroutines.delay
 
+import com.example.alert_eye.data.repository.AppSettingsRepository
+
 data class MonitoringUiState(
     val faceResult: FaceLandmarkerResult? = null,
     val imageWidth: Int = 1,
@@ -35,7 +37,8 @@ class MonitoringViewModel(
     private val alertManager: AlertManager,
     private val impactDetector: ImpactDetector,
     private val sosManager: SosManager,
-    private val syncRepository: SyncRepository
+    private val syncRepository: SyncRepository,
+    private val settingsRepository: AppSettingsRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MonitoringUiState())
@@ -45,15 +48,18 @@ class MonitoringViewModel(
 
     init {
         impactDetector.start {
-            triggerSosCountdown()
+            if (settingsRepository?.isImpactDetectionEnabled != false) {
+                triggerSosCountdown()
+            }
         }
     }
 
     fun triggerSosCountdown() {
         if (_uiState.value.isSosActive) return
-        _uiState.value = _uiState.value.copy(isSosActive = true, sosCountdown = 15)
+        val duration = settingsRepository?.sosCountdownSeconds ?: 15
+        _uiState.value = _uiState.value.copy(isSosActive = true, sosCountdown = duration)
         countdownJob = viewModelScope.launch {
-            for (i in 15 downTo 1) {
+            for (i in duration downTo 1) {
                 _uiState.value = _uiState.value.copy(sosCountdown = i)
                 delay(1000)
             }
