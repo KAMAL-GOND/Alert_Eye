@@ -60,7 +60,9 @@ class ContactRepository(
         }
 
         try {
-            batch.commit().await()
+            kotlinx.coroutines.withTimeout(6000L) {
+                batch.commit().await()
+            }
             contactDao.markAsSynced(unsynced.map { it.id })
             Log.d(TAG, "Successfully synced ${unsynced.size} contacts")
         } catch (e: Exception) {
