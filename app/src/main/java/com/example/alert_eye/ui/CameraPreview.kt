@@ -58,6 +58,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 @Composable
 fun CameraPreviewScreen(
     modifier: Modifier = Modifier,
+    isInPipMode: Boolean = false,
     viewModel: MonitoringViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
@@ -118,12 +119,15 @@ fun CameraPreviewScreen(
             modifier = Modifier.fillMaxSize()
         )
         
-        FaceOverlay(
-            result = uiState.faceResult,
-            imageWidth = uiState.imageWidth,
-            imageHeight = uiState.imageHeight,
-            modifier = Modifier.fillMaxSize()
-        )
+        // Hide 468-point 3D FaceOverlay in PiP mode to save GPU rendering and CPU cycles
+        if (!isInPipMode) {
+            FaceOverlay(
+                result = uiState.faceResult,
+                imageWidth = uiState.imageWidth,
+                imageHeight = uiState.imageHeight,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         val hasAlert = uiState.isDrowsy || uiState.isDistracted || uiState.isYawning || uiState.isUsingPhone || uiState.isDrinking
         
@@ -154,76 +158,104 @@ fun CameraPreviewScreen(
             else -> Color.Transparent
         }
 
-        AnimatedVisibility(
-            visible = hasAlert,
-            enter = fadeIn() + slideInVertically(),
-            exit = fadeOut() + slideOutVertically(),
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .background(alertColor.copy(alpha = alpha), RoundedCornerShape(16.dp))
-                    .border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
+        // Full alert banner in full-screen mode only (too large for PiP window)
+        if (!isInPipMode) {
+            AnimatedVisibility(
+                visible = hasAlert,
+                enter = fadeIn() + slideInVertically(),
+                exit = fadeOut() + slideOutVertically(),
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp)
             ) {
-                Text(
-                    text = alertText,
-                    color = if (uiState.isYawning) Color.Black else Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-        
-        if (hasAlert && (alertColor == Color.Red || alertColor == Color(0xFFFFA500))) {
-            Box(modifier = Modifier
-                .fillMaxSize()
-                .border(8.dp, alertColor.copy(alpha = alpha))
-            )
-        }
-
-        // SOS Button
-        Button(
-            onClick = { viewModel.triggerSosCountdown() },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-                .size(72.dp),
-            shape = CircleShape,
-            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-        ) {
-            Text("SOS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        }
-
-        // SOS Countdown Overlay
-        if (uiState.isSosActive) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.8f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(64.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .background(alertColor.copy(alpha = alpha), RoundedCornerShape(16.dp))
+                        .border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = "EMERGENCY DETECTED\nSending SOS in ${uiState.sosCountdown}s",
-                        color = Color.White,
+                        text = alertText,
+                        color = if (uiState.isYawning) Color.Black else Color.White,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(32.dp))
-                    Button(
-                        onClick = { viewModel.cancelSos() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White)
-                    ) {
-                        Text("CANCEL", color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        
+        // Dynamic Glowing Edge Alert Border
+        if (hasAlert && (alertColor == Color.Red || alertColor == Color(0xFFFFA500) || alertColor == Color.Yellow)) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .border(if (isInPipMode) 6.dp else 8.dp, alertColor.copy(alpha = alpha))
+            )
+        } else if (isInPipMode) {
+            // Subtle green glowing border indicating active monitoring during PiP
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .border(2.dp, Color(0xFF00E676).copy(alpha = 0.5f))
+            )
+        }
+
+        if (!isInPipMode) {
+            // SOS Button
+            Button(
+                onClick = { viewModel.triggerSosCountdown() },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+                    .size(72.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+            ) {
+                Text("SOS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+
+            // SOS Countdown Overlay
+            if (uiState.isSosActive) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.8f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(64.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "EMERGENCY DETECTED\nSending SOS in ${uiState.sosCountdown}s",
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(32.dp))
+                        Button(
+                            onClick = { viewModel.cancelSos() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                        ) {
+                            Text("CANCEL", color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
+            }
+        } else if (uiState.isSosActive) {
+            // Minimal PiP Emergency Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Red.copy(alpha = 0.85f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "EMERGENCY\n${uiState.sosCountdown}s",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }

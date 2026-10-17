@@ -1,8 +1,12 @@
 package com.example.alert_eye
 
 import android.Manifest
+import android.app.PictureInPictureParams
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
+import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -14,6 +18,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -37,14 +42,57 @@ import com.example.alert_eye.ui.theme.Alert_EyeTheme
 import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
+    private val isInPipModeState = mutableStateOf(false)
+    private var isMonitoringActive = false
+
+    private fun updatePipParams(autoEnter: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(3, 4))
+                .setAutoEnterEnabled(autoEnter)
+                .build()
+            setPictureInPictureParams(params)
+        }
+    }
+
+    fun enterPipMode() {
+        val params = PictureInPictureParams.Builder()
+            .setAspectRatio(Rational(3, 4))
+            .build()
+        enterPictureInPictureMode(params)
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        isInPipModeState.value = isInPictureInPictureMode
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && isMonitoringActive && !isInPipModeState.value) {
+            enterPipMode()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             Alert_EyeTheme {
+                val isInPip by isInPipModeState
                 val navController = rememberNavController()
                 val auth = FirebaseAuth.getInstance()
                 val startDestination = if (auth.currentUser != null) "monitoring" else "login"
+
+                LaunchedEffect(navController) {
+                    navController.addOnDestinationChangedListener { _, destination, _ ->
+                        isMonitoringActive = destination.route == "monitoring"
+                        updatePipParams(isMonitoringActive)
+                    }
+                }
 
                 NavHost(navController = navController, startDestination = startDestination) {
                     composable("login") {
@@ -103,46 +151,57 @@ class MainActivity : ComponentActivity() {
                         Scaffold(
                             modifier = Modifier.fillMaxSize(),
                             topBar = {
-                                TopAppBar(
-                                    title = { Text("AlertEye") },
-                                    actions = {
-                                        IconButton(onClick = { navController.navigate("history") }) {
-                                            Icon(Icons.Default.List, contentDescription = "History")
-                                        }
-                                        IconButton(onClick = { navController.navigate("contacts") }) {
-                                            Icon(Icons.Default.Person, contentDescription = "Contacts")
-                                        }
-                                        IconButton(onClick = { menuExpanded = true }) {
-                                            Icon(Icons.Default.MoreVert, contentDescription = "More")
-                                        }
-                                        DropdownMenu(
-                                            expanded = menuExpanded,
-                                            onDismissRequest = { menuExpanded = false }
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text("Settings") },
-                                                onClick = {
-                                                    menuExpanded = false
-                                                    navController.navigate("settings")
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Logout") },
-                                                onClick = {
-                                                    menuExpanded = false
-                                                    FirebaseAuth.getInstance().signOut()
-                                                    navController.navigate("login") {
-                                                        popUpTo("monitoring") { inclusive = true }
+                                if (!isInPip) {
+                                    TopAppBar(
+                                        title = { Text("AlertEye") },
+                                        actions = {
+                                            IconButton(onClick = { enterPipMode() }) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_pip),
+                                                    contentDescription = "Picture in Picture"
+                                                )
+                                            }
+                                            IconButton(onClick = { navController.navigate("history") }) {
+                                                Icon(Icons.Default.List, contentDescription = "History")
+                                            }
+                                            IconButton(onClick = { navController.navigate("contacts") }) {
+                                                Icon(Icons.Default.Person, contentDescription = "Contacts")
+                                            }
+                                            IconButton(onClick = { menuExpanded = true }) {
+                                                Icon(Icons.Default.MoreVert, contentDescription = "More")
+                                            }
+                                            DropdownMenu(
+                                                expanded = menuExpanded,
+                                                onDismissRequest = { menuExpanded = false }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Settings") },
+                                                    onClick = {
+                                                        menuExpanded = false
+                                                        navController.navigate("settings")
                                                     }
-                                                }
-                                            )
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text("Logout") },
+                                                    onClick = {
+                                                        menuExpanded = false
+                                                        FirebaseAuth.getInstance().signOut()
+                                                        navController.navigate("login") {
+                                                            popUpTo("monitoring") { inclusive = true }
+                                                        }
+                                                    }
+                                                )
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         ) { innerPadding ->
                             if (hasRequiredPermissions) {
-                                CameraPreviewScreen(modifier = Modifier.padding(innerPadding))
+                                CameraPreviewScreen(
+                                    modifier = if (isInPip) Modifier.fillMaxSize() else Modifier.padding(innerPadding),
+                                    isInPipMode = isInPip
+                                )
                             } else {
                                 com.example.alert_eye.ui.permissions.PermissionScreen(
                                     modifier = Modifier.padding(innerPadding)
